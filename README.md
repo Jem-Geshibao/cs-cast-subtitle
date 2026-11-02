@@ -77,7 +77,7 @@ python -c "from faster_whisper import WhisperModel; WhisperModel('medium', devic
 ### 2. 安装技能
 
 ```bash
-git clone https://github.com/<your-name>/cs-cast-subtitle.git
+git clone https://github.com/Jem-Geshibao/cs-cast-subtitle.git
 cd cs-cast-subtitle
 python scripts/install.py --list          # 查看目标与安装状态
 python scripts/install.py --target workbuddy
