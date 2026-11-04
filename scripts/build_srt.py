@@ -3,7 +3,8 @@
 
 排版模式（scripts/layouts.py）——两种模式共用同一硬约束：
   **源语言 1 行 + 中文 1 行，任何一行不许折行，不可超出字幕安全区**；
-  放不下时精简文字，不许换行、不许改时间轴。
+  放不下时首选按 ASR 词级时间轴拆段（内容逐字完整、严禁删内容），
+  拆无可拆才精简，不许换行、不许改时间轴。
   区别只在安全区宽度：
   * landscape（抖音横屏，默认）：加权行宽 ≤48（中文 ≈25 字 / 英文 ≈48 字符）
   * portrait（抖音竖屏）：加权行宽 ≤46（中文 ≈24 字 / 英文 ≈46 字符）
@@ -109,8 +110,8 @@ def main() -> None:
         for ln in lines:
             w = width(ln)
             if w > prof["limit"]:
-                over = ("精简该行文字（不许换行、不许改时间轴）"
-                        if single else "精简该行文字（当前为 --keep-breaks 覆盖模式，发布前请确认仍满足所选模式行数上限）")
+                over = ("按 ASR 词级时间轴把这句话拆到连续多段（严禁删内容；拆无可拆才精简）"
+                        if single else "拆段或精简该行文字（当前为 --keep-breaks 覆盖模式，发布前请确认仍满足所选模式行数上限）")
                 warns.append(f"[{i}] 行超宽 ≈{w:.0f}/{prof['limit']:.0f} → {over}: {ln}")
         cap = L.max_lines_for(lines, prof)
         if len(lines) > cap:

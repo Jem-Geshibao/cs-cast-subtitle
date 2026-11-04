@@ -1,6 +1,6 @@
 ---
 name: cs-cast-subtitle
-description: 把 CS:GO/CS2 职业比赛解说音频做成可发布的双语对照 SRT 字幕（英文源语言小写 + 中文对照，时间轴严禁改动）。当用户提供解说/采访音频并要求"识别语音生成字幕""校对+翻译""生成双语 SRT""做成抖音字幕"时使用，支持未提供比赛名时按音频线索反查比赛以核实选手与战队；若音频并非 CS 赛事解说（口播、访谈、其他题材），则自动降级为通用双语对照字幕流程。含长音频幻觉规避、漏段补录、选手实体联网核实、抖音横屏/竖屏双模式排版规范（用 --layout landscape|portrait 切换）。
+description: 把 CS:GO/CS2 职业比赛解说音频做成可发布的双语对照 SRT 字幕（英文源语言小写 + 中文对照，时间轴严禁改动）。当用户提供解说/采访音频并要求"识别语音生成字幕""校对+翻译""生成双语 SRT""做成抖音字幕"时使用，支持未提供比赛名时按音频线索反查比赛以核实选手与战队；若音频并非 CS 赛事解说（口播、访谈、其他题材），则自动降级为通用双语对照字幕流程。含长音频幻觉规避、漏段补录、选手实体联网核实、抖音横屏/竖屏双模式排版规范（用 --layout landscape|portrait 切换），说话内容逐字完整呈现（超宽按词级时间轴拆段、严禁删内容）并以 gaps.py 做覆盖率校验。
 agent_created: true
 ---
 
@@ -83,6 +83,8 @@ SK="C:/Users/34333/.workbuddy/skills/cs-cast-subtitle"
 
 补录结果按时间轴并入主稿；同一时段有冲突时，选**符合比赛背景**的那一版。
 
+**转写产物自带词级时间戳（`words` 字段），必须保留**——步骤六拆分长句时只能用词级时间轴切分，这是「拆段不删字」的唯一合法依据。
+
 ### 步骤六：纠错、翻译与排版
 
 读 `references/cs-terminology.md`（术语/点位/ASR 错识对照）与 `references/subtitle-style.md`（排版与口吻）。
@@ -95,7 +97,8 @@ SK="C:/Users/34333/.workbuddy/skills/cs-cast-subtitle"
 - 已确认的选手 ID、战队名、地图点位不翻译。
 - 无法确认的人名：标 `【?】` 并在交付说明里列出，**禁止编造**。
 - **排版模式二选一**（`--layout`，两种模式阈值与规则见 `references/subtitle-style.md` 第零节）：
-  - 两种模式共用同一硬约束：一段 = 源语言 1 行 + 中文 1 行，**不许折行**；纯中文段 1 行；放不下时**精简文字**，不许换行、不许改时间轴。
+  - 两种模式共用同一硬约束：一段 = 源语言 1 行 + 中文 1 行，**不许折行**；纯中文段 1 行；不许换行、不许改时间轴。
+  - **内容必须逐字完整**：一句话超宽时按 ASR 词级时间轴拆到连续多段（一段塞不下就写下一段），严禁删内容；拆到最细仍超宽才精简，且删改必须在交付说明里列出。完整性的四种失败模式与检查清单见 `references/content-completeness.md`（必读）。
   - `landscape`（横屏，默认）：行宽 ≤ 48。
   - `portrait`（竖屏）：行宽 ≤ 46（竖屏画面更窄）。
 
@@ -120,11 +123,14 @@ SK="C:/Users/34333/.workbuddy/skills/cs-cast-subtitle"
 
 ```bash
 "$PY" "$SK/scripts/validate_srt.py" "<原名>_bilingual_corrected.srt" --layout landscape   # 必须与生成时同模式
+"$PY" "$SK/scripts/gaps.py" "<音频路径>" pairs.json --tolerance 1.0 --min-gap 2        # 覆盖率审计（强制）
 ```
 
 校验项：序号连续、时间轴单调不重叠、`end > start`，以及按所选模式检查行宽与行数（两种模式均 ≤2 行 / 纯中文 1 行；横屏行宽 ≤48，竖屏 ≤46）。有报错必须修到通过。
 
-交付时说明：比赛背景与核实来源、关键纠错表（错识 → 正确）、存疑清单、字幕条数与时长。
+**覆盖率审计（防"说话内容缺失"的最后一道闸）**：对最终 `pairs.json` 跑 `gaps.py`，每个"有声音无字幕"区间必须能解释为 静音 / 环境声（加「（全场欢呼）」标注）/ 存疑（写进交付说明）——**只要是人物说话就必须有字幕**，未解释区间不清零不许交付。详见 `references/content-completeness.md`。
+
+交付时说明：比赛背景与核实来源、关键纠错表（错识 → 正确）、存疑清单、字幕条数与时长、覆盖率结论。
 
 ## 已知坑
 
@@ -132,6 +138,7 @@ SK="C:/Users/34333/.workbuddy/skills/cs-cast-subtitle"
 - **large-v3 的 model.bin 不完整**（约 2.96GB 处截断），需从 `hf-mirror` 重下才能用；CPU 下 medium 更快且对解说足够。
 - **控制台打印中文** 需 UTF-8，脚本内已 `reconfigure`；若仍报 `UnicodeEncodeError`，加 `PYTHONIOENCODING=utf-8`。
 - **文件名日期 ≠ 比赛日期**，通常是录制/下载日，比赛在当天或前 1–3 天。
+- **剪辑软件导入的是副本**：剪映等工具把 SRT 复制为草稿内的文字片段，之后改源文件草稿不会同步，必须删旧字幕轨道后重新导入；注意走「本地字幕 → 导入字幕」，**不要点「智能字幕 → 开始识别」**（那是机翻重识别，会盖掉人工稿）。
 
 ## 参考文件
 
@@ -140,7 +147,9 @@ SK="C:/Users/34333/.workbuddy/skills/cs-cast-subtitle"
 | `references/cs-terminology.md` | 术语/点位/解说句型/ASR 错识对照表 |
 | `references/players-teams.md` | 已核实选手战队库、大小写规范、核实方法 |
 | `references/match-identification.md` | 是否 CS 的判定、比赛反查流程、实战案例 |
-| `references/subtitle-style.md` | 抖音横屏/竖屏双模式排版规范、单行化与精简、翻译口吻、一致性清单 |
+| `references/subtitle-style.md` | 抖音横屏/竖屏双模式排版规范、拆分与精简、翻译口吻、一致性清单 |
+| `references/content-completeness.md` | **内容完整性（必读）**：逐字呈现原则、四种失败模式、覆盖率审计、成功案例复盘 |
 | `scripts/layouts.py` | 排版模式统一配置（阈值由 build/validate 共用） |
 | `assets/example_bilingual.srt` | 横屏单行版成品样例（landscape 格式基准） |
 | `assets/example_bilingual_portrait.srt` | 竖屏单行版成品样例（portrait 格式基准） |
+| `assets/example_interview_bilingual.srt` | 采访类成品样例（16 条逐字完整版，用户验收通过的完整性基准） |
