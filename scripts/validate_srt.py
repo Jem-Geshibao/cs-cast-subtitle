@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """SRT 发布前校验：序号连续、时间轴单调不重叠、行宽达标、无空块。
 
-排版模式（scripts/layouts.py）：
-  * landscape（抖音横屏，默认）：双语段 = 源 1 行 + 中 1 行，纯中文段 1 行，
-    加权行宽 ≤48；
-  * portrait（抖音竖屏）：允许折行，单块 ≤5 行，加权行宽 ≤46。
+排版模式（scripts/layouts.py）——两种模式共用同一硬约束：
+  **源语言 1 行 + 中文 1 行，任何一行不许折行，不可超出字幕安全区**。
+  * landscape（抖音横屏，默认）：加权行宽 ≤48；
+  * portrait（抖音竖屏）：加权行宽 ≤46。
 
 用法：
     python validate_srt.py <file.srt>                        # 默认横屏
@@ -40,7 +40,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("srt")
     ap.add_argument("--layout", default=L.DEFAULT, choices=sorted(L.LAYOUTS),
-                    help="排版模式：landscape=抖音横屏（单行），portrait=抖音竖屏（多行）")
+                    help="排版模式：landscape=抖音横屏（行宽 ≤48），portrait=抖音竖屏（行宽 ≤46），均单行不折行")
     ap.add_argument("--limit", type=float, default=None,
                     help="加权行宽上限（默认取所选模式）")
     ap.add_argument("--max-lines", type=int, default=None,

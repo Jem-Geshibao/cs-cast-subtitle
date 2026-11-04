@@ -95,9 +95,9 @@ SK="C:/Users/34333/.workbuddy/skills/cs-cast-subtitle"
 - 已确认的选手 ID、战队名、地图点位不翻译。
 - 无法确认的人名：标 `【?】` 并在交付说明里列出，**禁止编造**。
 - **排版模式二选一**（`--layout`，两种模式阈值与规则见 `references/subtitle-style.md` 第零节）：
-  - `landscape`（横屏，默认）：一段 = 源语言 1 行 + 中文 1 行，**不许折行**；行宽 ≤ 48；放不下时**精简文字**。
-  - `portrait`（竖屏）：允许折行，单块 ≤ 5 行（源 ≤3 + 中 ≤2）；行宽 ≤ 46；超宽时在逗号处**断行**。
-  - 纯中文段：横屏只许 1 行，竖屏 ≤2 行。
+  - 两种模式共用同一硬约束：一段 = 源语言 1 行 + 中文 1 行，**不许折行**；纯中文段 1 行；放不下时**精简文字**，不许换行、不许改时间轴。
+  - `landscape`（横屏，默认）：行宽 ≤ 48。
+  - `portrait`（竖屏）：行宽 ≤ 46（竖屏画面更窄）。
 
 横屏模式下 `build_srt.py` 会把 `pairs.json` 里的软换行自动合并为单行；超宽时会提示精简。
 
@@ -122,7 +122,7 @@ SK="C:/Users/34333/.workbuddy/skills/cs-cast-subtitle"
 "$PY" "$SK/scripts/validate_srt.py" "<原名>_bilingual_corrected.srt" --layout landscape   # 必须与生成时同模式
 ```
 
-校验项：序号连续、时间轴单调不重叠、`end > start`，以及按所选模式检查行宽与行数（横屏：≤2 行、≤48；竖屏：≤5 行、≤46）。有报错必须修到通过。
+校验项：序号连续、时间轴单调不重叠、`end > start`，以及按所选模式检查行宽与行数（两种模式均 ≤2 行 / 纯中文 1 行；横屏行宽 ≤48，竖屏 ≤46）。有报错必须修到通过。
 
 交付时说明：比赛背景与核实来源、关键纠错表（错识 → 正确）、存疑清单、字幕条数与时长。
 
@@ -143,4 +143,4 @@ SK="C:/Users/34333/.workbuddy/skills/cs-cast-subtitle"
 | `references/subtitle-style.md` | 抖音横屏/竖屏双模式排版规范、单行化与精简、翻译口吻、一致性清单 |
 | `scripts/layouts.py` | 排版模式统一配置（阈值由 build/validate 共用） |
 | `assets/example_bilingual.srt` | 横屏单行版成品样例（landscape 格式基准） |
-| `assets/example_bilingual_portrait.srt` | 竖屏多行版成品样例（portrait 格式基准） |
+| `assets/example_bilingual_portrait.srt` | 竖屏单行版成品样例（portrait 格式基准） |

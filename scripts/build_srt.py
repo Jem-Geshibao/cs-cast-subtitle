@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """把人工校对+翻译好的对照数据渲染成 SRT，并顺带做行宽体检。
 
-排版模式（scripts/layouts.py）：
-  * landscape（抖音横屏，默认）：源语言 1 行 + 中文 1 行，不许折行；
-    加权行宽 ≤48（中文 ≈25 字 / 英文 ≈48 字符）；纯中文段只许 1 行。
-    输入里写了 "\\n" 也会被合并为单行（--keep-breaks 可关闭）。
-  * portrait（抖音竖屏）：允许折行，单块 ≤5 行（源 ≤3 + 中 ≤2），
-    加权行宽 ≤46（中文 ≈19 字 / 英文 ≈46 字符）。
+排版模式（scripts/layouts.py）——两种模式共用同一硬约束：
+  **源语言 1 行 + 中文 1 行，任何一行不许折行，不可超出字幕安全区**；
+  放不下时精简文字，不许换行、不许改时间轴。
+  区别只在安全区宽度：
+  * landscape（抖音横屏，默认）：加权行宽 ≤48（中文 ≈25 字 / 英文 ≈48 字符）
+  * portrait（抖音竖屏）：加权行宽 ≤46（中文 ≈24 字 / 英文 ≈46 字符）
+  输入里写了 "\\n" 会被自动合并为单行（--keep-breaks 可保留，风险自负）。
 
 pairs.json 格式（时间轴必须来自 ASR 原值，严禁手改）：
 [
@@ -65,11 +66,11 @@ def main() -> None:
     ap.add_argument("pairs")
     ap.add_argument("out")
     ap.add_argument("--layout", default=L.DEFAULT, choices=sorted(L.LAYOUTS),
-                    help="排版模式：landscape=抖音横屏（单行），portrait=抖音竖屏（多行）")
+                    help="排版模式：landscape=抖音横屏（行宽 ≤48），portrait=抖音竖屏（行宽 ≤46），均单行不折行")
     ap.add_argument("--limit", type=float, default=None, help="加权行宽上限（默认取所选模式）")
     ap.add_argument("--max-lines", type=int, default=None, help="单块最大行数（默认取所选模式）")
     ap.add_argument("--no-lower", action="store_true", help="不把源语言强制小写")
-    ap.add_argument("--single-line", action="store_true", help="强制单行（覆盖竖屏模式的多行）")
+    ap.add_argument("--single-line", action="store_true", help="强制单行（两种模式默认已是单行，一般无需指定）")
     ap.add_argument("--keep-breaks", action="store_true", help="保留输入换行（覆盖横屏模式的合并）")
     args = ap.parse_args()
 
@@ -109,7 +110,7 @@ def main() -> None:
             w = width(ln)
             if w > prof["limit"]:
                 over = ("精简该行文字（不许换行、不许改时间轴）"
-                        if single else "在逗号/连词处断行或精简文字")
+                        if single else "精简该行文字（当前为 --keep-breaks 覆盖模式，发布前请确认仍满足所选模式行数上限）")
                 warns.append(f"[{i}] 行超宽 ≈{w:.0f}/{prof['limit']:.0f} → {over}: {ln}")
         cap = L.max_lines_for(lines, prof)
         if len(lines) > cap:

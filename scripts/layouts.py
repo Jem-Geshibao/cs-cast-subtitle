@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""排版模式统一配置：抖音竖屏（portrait，多行）与抖音横屏（landscape，单行）。
+"""排版模式统一配置：抖音竖屏（portrait）与抖音横屏（landscape）。
+
+两种模式共用同一硬约束：**源语言 1 行 + 中文 1 行，任何一行不许折行，
+不可超出字幕安全区**；放不下时精简文字，不许换行、不许改时间轴。
+区别只在安全区宽度：竖屏画面更窄，加权行宽上限更低。
 
 build_srt.py / validate_srt.py 共用这里的 profile，保证两处阈值一致。
 """
@@ -7,11 +11,11 @@ build_srt.py / validate_srt.py 共用这里的 profile，保证两处阈值一�
 LAYOUTS = {
     "portrait": {
         "label": "抖音竖屏",
-        "limit": 46.0,          # 加权行宽上限（英文 ≈46 字符 / 中文 ≈19 字）
-        "max_lines": 5,         # 单块总行数上限（源 3 行 + 中 2 行）
-        "single_line": False,   # 允许折行：超宽时在逗号/连词处断行
-        "bilingual_only": False,
-        "note": "允许折行，单块 ≤5 行（源 ≤3 + 中 ≤2），行宽 ≤46",
+        "limit": 46.0,          # 加权行宽上限（英文 ≈46 字符 / 中文 ≈24 字）
+        "max_lines": 2,         # 双语段 = 源 1 行 + 中 1 行
+        "single_line": True,    # 强制单行：任何一行都不许折行
+        "bilingual_only": True, # 纯中文段最多 1 行
+        "note": "源语言 1 行 + 中文 1 行，不许折行，行宽 ≤46，放不下就精简文字",
     },
     "landscape": {
         "label": "抖音横屏",
@@ -19,7 +23,7 @@ LAYOUTS = {
         "max_lines": 2,         # 双语段 = 源 1 行 + 中 1 行
         "single_line": True,    # 强制单行：任何一行都不许折行
         "bilingual_only": True, # 纯中文段最多 1 行
-        "note": "源语言 1 行 + 中文 1 行，不许折行，放不下就精简文字",
+        "note": "源语言 1 行 + 中文 1 行，不许折行，行宽 ≤48，放不下就精简文字",
     },
 }
 
@@ -58,7 +62,7 @@ def is_bilingual(lines) -> bool:
 
 
 def max_lines_for(lines, prof: dict) -> int:
-    """横屏模式下，纯中文段只允许 1 行；竖屏统一 ≤5。"""
+    """纯中文段只允许 1 行（两种模式一致）。"""
     cap = prof["max_lines"]
     if prof.get("bilingual_only") and not is_bilingual(lines):
         cap = min(cap, 1)
