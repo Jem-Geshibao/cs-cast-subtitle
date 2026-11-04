@@ -7,11 +7,11 @@
 ```
 1
 00:00:00,000 --> 00:00:03,060
-do anything too drastic with the knife,
-but it'll guarantee the kill.
-用刀不必太激进，
-但这刀稳拿击杀
+not too drastic with the knife, but it's a kill
+用刀不必太激进，这刀稳拿击杀
 ```
+
+**排版双模式（抖音横屏 / 竖屏）**：同一份校对稿，用 `--layout landscape`（默认，横屏）出「源语言 1 行 + 中文 1 行、不许折行、行宽 ≤ 48」的版本；用 `--layout portrait` 出「允许折行、单块 ≤ 5 行、行宽 ≤ 46」的竖屏版本。两种模式都保证字幕不超出安全区。
 
 它解决的不是"翻译"问题，而是字幕翻车的三个真实原因：
 
@@ -38,16 +38,18 @@ cs-cast-subtitle/
 │   ├── transcribe.py               # 分段转写主流程
 │   ├── recheck.py                  # 指定区间补录 / 攻坚重转
 │   ├── gaps.py                     # 自动列出「有声音但没转出来」的漏段
-│   ├── build_srt.py                # 对照数据 → SRT（顺带行宽体检）
-│   ├── validate_srt.py             # 发布前校验
+│   ├── build_srt.py                # 对照数据 → SRT（顺带行宽体检，支持双模式）
+│   ├── validate_srt.py             # 发布前校验（支持双模式）
+│   ├── layouts.py                  # 排版模式统一配置（横屏/竖屏阈值）
 │   └── install.py                  # 安装到各类 agent 的 skills 目录
 ├── references/
 │   ├── cs-terminology.md           # 术语 / 地图点位 / 解说句型 / ASR 错识对照表
 │   ├── players-teams.md            # 选手战队实体库、ID 大小写规范、核实方法
 │   ├── match-identification.md     # 是否 CS 的判定、比赛反查流程、实战案例
-│   └── subtitle-style.md           # 抖音竖屏排版规范、翻译口吻、一致性清单
+│   └── subtitle-style.md           # 抖音横屏/竖屏排版规范、翻译口吻、一致性清单
 └── assets/
-    └── example_bilingual.srt       # 已交付成品样例（格式基准）
+    ├── example_bilingual.srt           # 横屏单行版成品样例（landscape 格式基准）
+    └── example_bilingual_portrait.srt  # 竖屏多行版成品样例（portrait 格式基准）
 ```
 
 ---
@@ -98,17 +100,17 @@ PY="python"; SK="."
 "$PY" "$SK/scripts/gaps.py"           "audio.mp3" segments.json          # 自动列漏段
 "$PY" "$SK/scripts/recheck.py"        "audio.mp3" --ranges "23-27,26-33" --lang en --out recheck.json
 # 人工校对+翻译后写成 pairs.json
-"$PY" "$SK/scripts/build_srt.py"      pairs.json "audio_bilingual_corrected.srt"
-"$PY" "$SK/scripts/validate_srt.py"   "audio_bilingual_corrected.srt"
+"$PY" "$SK/scripts/build_srt.py"      pairs.json "audio_bilingual_corrected.srt" --layout landscape   # 竖屏用 portrait
+"$PY" "$SK/scripts/validate_srt.py"   "audio_bilingual_corrected.srt" --layout landscape             # 必须与生成时同模式
 ```
 
-`pairs.json` 格式（`src` 为空即纯中文段）：
+`pairs.json` 格式（`src` 为空即纯中文段；横屏模式下脚本会自动把软换行合并为单行）：
 
 ```json
 [
   {"start": 0.0, "end": 3.06,
-   "src": "do anything too drastic with the knife,\nbut it'll guarantee the kill.",
-   "zh": "用刀不必太激进，\n但这刀稳拿击杀"},
+   "src": "not too drastic with the knife, but it's a kill",
+   "zh": "用刀不必太激进，这刀稳拿击杀"},
   {"start": 25.62, "end": 29.78, "src": null, "zh": "这波换人很果断"}
 ]
 ```
@@ -129,7 +131,28 @@ PY="python"; SK="."
 5. **补录**：`gaps.py` 找漏段，`recheck.py` 重转；英文段必做一次 `--no-prompt` 无预设复转。
 6. **纠错翻译**：先结合背景推断说话人真实意图 → 改错词 → 再翻译。时间轴一律用 ASR 原值。
 7. **降级**：非 CS 内容不终止任务，换领域提示词走通用双语流程。
-8. **校验**：序号连续、时间轴单调不重叠、`end > start`、行宽 ≤ 46、单块 ≤ 5 行。
+8. **校验**：序号连续、时间轴单调不重叠、`end > start`，并按所选排版模式检查行宽与行数（横屏：≤2 行、≤48；竖屏：≤5 行、≤46）。
+
+---
+
+## 排版模式（横屏 / 竖屏）
+
+同一份校对稿可出两种版本，阈值统一放在 `scripts/layouts.py`：
+
+| | `landscape` 横屏（默认） | `portrait` 竖屏 |
+|---|---|---|
+| 单块结构 | 源语言 1 行 + 中文 1 行，**不许折行** | 源 ≤3 行 + 中 ≤2 行，**允许折行** |
+| 纯中文段 | 1 行 | ≤2 行 |
+| 加权行宽 | ≤ 48（中文 ≈25 字 / 英文 ≈48 字符） | ≤ 46（中文 ≈19 字 / 英文 ≈46 字符） |
+| 超宽处理 | 精简文字 | 在逗号/连词处断行 |
+| 样例 | `assets/example_bilingual.srt` | `assets/example_bilingual_portrait.srt` |
+
+```bash
+python scripts/build_srt.py    pairs.json out.srt --layout portrait   # 竖屏
+python scripts/validate_srt.py out.srt     --layout portrait
+```
+
+**生成与校验必须用同一个 `--layout`**，否则校验结果不可信。
 
 ---
 
@@ -172,11 +195,11 @@ cmd //c mklink /D "%USERPROFILE%\.claude\skills\cs-cast-subtitle" "%CD%\cs-cast-
 
 ```bash
 # 方式一：克隆后安装
-git clone https://github.com/<your-name>/cs-cast-subtitle.git
+git clone https://github.com/Jem-Geshibao/cs-cast-subtitle.git
 python cs-cast-subtitle/scripts/install.py --target workbuddy
 
 # 方式二：作为你自己仓库的子目录（推荐，便于改）
-git submodule add https://github.com/<your-name>/cs-cast-subtitle.git skills/cs-cast-subtitle
+git submodule add https://github.com/Jem-Geshibao/cs-cast-subtitle.git skills/cs-cast-subtitle
 
 # 方式三：Download ZIP → 解压 → 把 cs-cast-subtitle 文件夹放进 skills 目录
 ```
@@ -202,8 +225,9 @@ git submodule add https://github.com/<your-name>/cs-cast-subtitle.git skills/cs-
 | `transcribe.py` | `--lang auto/en/zh` `--prompt` `--no-prompt` `--chunk` `--overlap` `--model` `--out` | 分段转写主流程 |
 | `gaps.py` | `<音频> <segments.json>` `--tolerance` `--min-gap` | 自动列出可疑漏段并给出可复制区间 |
 | `recheck.py` | `--ranges "23-27,26-33"` `--lang` `--prompt` `--no-prompt` `--beam` | 区间补录 / 攻坚重转 |
-| `build_srt.py` | `<pairs.json> <out.srt>` `--limit` `--no-lower` | 渲染 SRT + 行宽体检（源语言默认强制小写） |
-| `validate_srt.py` | `<file.srt>` `--limit` `--max-lines` | 发布前校验，有问题退出码 1 |
+| `build_srt.py` | `<pairs.json> <out.srt>` `--layout` `--limit` `--max-lines` `--no-lower` `--keep-breaks` | 渲染 SRT（横屏默认自动合并为单行）+ 行宽体检 |
+| `validate_srt.py` | `<file.srt>` `--layout` `--limit` `--max-lines` | 发布前校验，有问题退出码 1 |
+| `layouts.py` | — | 横屏/竖屏阈值统一配置，被 build/validate 共用 |
 | `install.py` | `--target` `--path` `--link` `--force` `--list` | 安装到各 agent |
 
 ---
@@ -222,8 +246,8 @@ Windows 下加 `PYTHONIOENCODING=utf-8`（脚本内已 `reconfigure`，极端情
 **Q：人名还是听错了？**
 先确认比赛锁对了没——把双方五人名单写进 `recheck.py --prompt` 重转；仍不确定就在交付说明里标 `【?】`，不要编造。
 
-**Q：一条字幕太长挡住画面？**
-抖音竖屏 6 号字：英文 ≈46 字符/行、中文 ≈19 字/行，单块 ≤5 行（建议 4 行）。超宽时在逗号处断行，不要改时间轴。
+**Q：一条字幕太长、超出安全区怎么办？**
+先看用的是哪个模式。横屏（默认）：16:9 安全区左右各留 ≈8%、底部 ≈12%，加权行宽 ≤ 48，一段只能 2 行且**不许折行** → 按 `references/subtitle-style.md` 第二节精简文字（删垫话、压缩修饰、砍源语言次要成分）。竖屏：加权行宽 ≤ 46，单块 ≤ 5 行，超宽时在逗号处断行。**两种模式下都不要改时间轴**。
 
 **Q：large-v3 能不能用？**
 CPU 下极慢（4 分钟音频数十分钟），且部分镜像下载的 `model.bin` 不完整。默认 medium 即可。
@@ -233,9 +257,10 @@ CPU 下极慢（4 分钟音频数十分钟），且部分镜像下载的 `model.
 ## 硬规则（改代码时请保留）
 
 1. **时间轴严禁改动**，必须用 ASR 原始 `start/end`。
-2. 源语言行**全小写**；中文解说/采访段**只输出中文**，不做双语对照。
-3. 无法确认的人名标 `【?】` 并在交付说明列出，**禁止编造**。
-4. 校验不通过不得交付。
+2. **排版模式二选一**：横屏（默认）每段 源 1 行 + 中 1 行、不许折行、行宽 ≤ 48；竖屏允许折行、单块 ≤ 5 行、行宽 ≤ 46。生成与校验必须用同一个 `--layout`。
+3. 源语言行**全小写**；中文解说/采访段**只输出中文**，不做双语对照。
+4. 无法确认的人名标 `【?】` 并在交付说明列出，**禁止编造**。
+5. 校验不通过不得交付。
 
 ---
 

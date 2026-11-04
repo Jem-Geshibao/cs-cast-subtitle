@@ -1,6 +1,6 @@
 ---
 name: cs-cast-subtitle
-description: 把 CS:GO/CS2 职业比赛解说音频做成可发布的双语对照 SRT 字幕（英文源语言小写 + 中文对照，时间轴严禁改动）。当用户提供解说/采访音频并要求"识别语音生成字幕""校对+翻译""生成双语 SRT""做成抖音字幕"时使用，支持未提供比赛名时按音频线索反查比赛以核实选手与战队；若音频并非 CS 赛事解说（口播、访谈、其他题材），则自动降级为通用双语对照字幕流程。含长音频幻觉规避、漏段补录、选手实体联网核实、抖音竖屏 6 号字排版规范。
+description: 把 CS:GO/CS2 职业比赛解说音频做成可发布的双语对照 SRT 字幕（英文源语言小写 + 中文对照，时间轴严禁改动）。当用户提供解说/采访音频并要求"识别语音生成字幕""校对+翻译""生成双语 SRT""做成抖音字幕"时使用，支持未提供比赛名时按音频线索反查比赛以核实选手与战队；若音频并非 CS 赛事解说（口播、访谈、其他题材），则自动降级为通用双语对照字幕流程。含长音频幻觉规避、漏段补录、选手实体联网核实、抖音横屏/竖屏双模式排版规范（用 --layout landscape|portrait 切换）。
 agent_created: true
 ---
 
@@ -16,7 +16,7 @@ agent_created: true
 
 - 必填：音频文件路径（`MP3/WAV/M4A/MP4` 均可）。
 - 可选：比赛名称（赛事 + 对阵 + 日期）。**未提供时必须走反查流程**。
-- 可选：目标平台与字号（默认抖音竖屏 6 号字）。
+- 可选：目标平台与排版模式（默认抖音横屏 `landscape`；竖屏用 `--layout portrait`，见 `references/subtitle-style.md`）。
 
 工作目录即音频所在目录，所有中间产物与最终 SRT 都写在音频旁边。
 
@@ -94,11 +94,17 @@ SK="C:/Users/34333/.workbuddy/skills/cs-cast-subtitle"
 - 源语言行**全小写**；中文解说段只输出中文，不做双语对照。
 - 已确认的选手 ID、战队名、地图点位不翻译。
 - 无法确认的人名：标 `【?】` 并在交付说明里列出，**禁止编造**。
+- **排版模式二选一**（`--layout`，两种模式阈值与规则见 `references/subtitle-style.md` 第零节）：
+  - `landscape`（横屏，默认）：一段 = 源语言 1 行 + 中文 1 行，**不许折行**；行宽 ≤ 48；放不下时**精简文字**。
+  - `portrait`（竖屏）：允许折行，单块 ≤ 5 行（源 ≤3 + 中 ≤2）；行宽 ≤ 46；超宽时在逗号处**断行**。
+  - 纯中文段：横屏只许 1 行，竖屏 ≤2 行。
+
+横屏模式下 `build_srt.py` 会把 `pairs.json` 里的软换行自动合并为单行；超宽时会提示精简。
 
 把校对后的对照数据写成 `pairs.json`（`[{"start","end","src","zh"}]`，`src` 为空即纯中文段），再渲染：
 
 ```bash
-"$PY" "$SK/scripts/build_srt.py" pairs.json "<原名>_bilingual_corrected.srt"
+"$PY" "$SK/scripts/build_srt.py" pairs.json "<原名>_bilingual_corrected.srt" --layout landscape   # 竖屏用 portrait
 ```
 
 ### 步骤七：非 CS 内容的降级流程
@@ -107,16 +113,16 @@ SK="C:/Users/34333/.workbuddy/skills/cs-cast-subtitle"
 
 1. 同样执行步骤一、四、五（分段转写 + 补录），但提示词换成该音频的实际领域（口播/访谈/课程等），或直接用 `--no-prompt`。
 2. 跳过步骤三的选手实体核实；通用专有名词（人名、品牌、产品型号）仍应联网核实。
-3. 排版规则不变：源语言小写 + 中文对照、时间轴不改、抖音 6 号字行宽上限。
+3. 排版规则不变：源语言小写 + 中文对照、时间轴不改、按所选 `--layout` 模式的行宽与行数上限排版。
 4. 交付物同名 `<原名>_bilingual_corrected.srt`，并在说明里注明"非 CS 解说素材，已按通用双语流程处理"。
 
 ### 步骤八：校验与交付
 
 ```bash
-"$PY" "$SK/scripts/validate_srt.py" "<原名>_bilingual_corrected.srt"
+"$PY" "$SK/scripts/validate_srt.py" "<原名>_bilingual_corrected.srt" --layout landscape   # 必须与生成时同模式
 ```
 
-校验项：序号连续、时间轴单调不重叠、`end > start`、行宽 ≤ 46、单块 ≤ 5 行（建议 4 行）。有报错必须修到通过。
+校验项：序号连续、时间轴单调不重叠、`end > start`，以及按所选模式检查行宽与行数（横屏：≤2 行、≤48；竖屏：≤5 行、≤46）。有报错必须修到通过。
 
 交付时说明：比赛背景与核实来源、关键纠错表（错识 → 正确）、存疑清单、字幕条数与时长。
 
@@ -134,5 +140,7 @@ SK="C:/Users/34333/.workbuddy/skills/cs-cast-subtitle"
 | `references/cs-terminology.md` | 术语/点位/解说句型/ASR 错识对照表 |
 | `references/players-teams.md` | 已核实选手战队库、大小写规范、核实方法 |
 | `references/match-identification.md` | 是否 CS 的判定、比赛反查流程、实战案例 |
-| `references/subtitle-style.md` | 排版规范、翻译口吻、一致性检查清单 |
-| `assets/example_bilingual.srt` | 已交付的成品样例（格式参照基准） |
+| `references/subtitle-style.md` | 抖音横屏/竖屏双模式排版规范、单行化与精简、翻译口吻、一致性清单 |
+| `scripts/layouts.py` | 排版模式统一配置（阈值由 build/validate 共用） |
+| `assets/example_bilingual.srt` | 横屏单行版成品样例（landscape 格式基准） |
+| `assets/example_bilingual_portrait.srt` | 竖屏多行版成品样例（portrait 格式基准） |

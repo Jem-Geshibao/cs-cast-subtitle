@@ -1,14 +1,25 @@
 # -*- coding: utf-8 -*-
 """SRT 发布前校验：序号连续、时间轴单调不重叠、行宽达标、无空块。
 
+排版模式（scripts/layouts.py）：
+  * landscape（抖音横屏，默认）：双语段 = 源 1 行 + 中 1 行，纯中文段 1 行，
+    加权行宽 ≤48；
+  * portrait（抖音竖屏）：允许折行，单块 ≤5 行，加权行宽 ≤46。
+
 用法：
-    python validate_srt.py <file.srt> [--limit 46] [--max-lines 4]
+    python validate_srt.py <file.srt>                        # 默认横屏
+    python validate_srt.py <file.srt> --layout portrait      # 竖屏
+    python validate_srt.py <file.srt> --limit 40 --max-lines 3
 """
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import layouts as L  # noqa: E402
 
 
 def ts(s: str) -> float:
@@ -28,10 +39,16 @@ def width(s: str) -> float:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("srt")
-    ap.add_argument("--limit", type=float, default=46.0)
-    ap.add_argument("--max-lines", type=int, default=5,
-                    help="单块最大行数（已交付稿出现过 源3行+中2行，默认 5）")
+    ap.add_argument("--layout", default=L.DEFAULT, choices=sorted(L.LAYOUTS),
+                    help="排版模式：landscape=抖音横屏（单行），portrait=抖音竖屏（多行）")
+    ap.add_argument("--limit", type=float, default=None,
+                    help="加权行宽上限（默认取所选模式）")
+    ap.add_argument("--max-lines", type=int, default=None,
+                    help="单块最大行数（默认取所选模式）")
     args = ap.parse_args()
+
+    prof = L.resolve(args.limit, args.max_lines, args.layout)
+    print(f"排版模式：{prof['label']}（{prof['note']}）")
 
     text = open(args.srt, encoding="utf-8-sig").read()
     blocks = [b for b in re.split(r"\n\s*\n", text.strip()) if b.strip()]
@@ -55,11 +72,14 @@ def main() -> None:
             errs.append(f"[{i}] 与上一条重叠（上一条结束 {prev_end:.2f}s）")
         prev_end = en
         body = lines[2:]
-        if len(body) > args.max_lines:
-            errs.append(f"[{i}] 行数 {len(body)} 超过竖屏安全值 {args.max_lines}")
+        cap = L.max_lines_for(body, prof)
+        if len(body) > cap:
+            errs.append(f"[{i}] 行数 {len(body)} 超过上限 {cap}"
+                        + ("（双语只许 2 行、纯中文 1 行）" if prof["bilingual_only"]
+                           else f"（单块最多 {cap} 行）"))
         for ln in body:
-            if width(ln) > args.limit:
-                errs.append(f"[{i}] 行超宽 ≈{width(ln):.0f}/{args.limit:.0f}: {ln[:30]}...")
+            if width(ln) > prof["limit"]:
+                errs.append(f"[{i}] 行超宽 ≈{width(ln):.0f}/{prof['limit']:.0f}: {ln[:30]}...")
 
     print(f"共 {len(blocks)} 条字幕，时长覆盖至 {prev_end:.2f}s")
     if errs:
